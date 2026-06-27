@@ -14,18 +14,20 @@ try:
     )
     def call_model(messages):
         return client.chat.completions.create(
-            model="qwen3-vl-235b-a22b-thinking",
+            model="qwen3-vl-235b-a22b-instruct",
             messages=messages,
             tools=TOOLS,
             tool_choice="auto"
         )
     
+    user_content = input("What do you want to do?: ")
     messages = [
         {"role": "system", "content": "You are a computer use agent. When given a goal, use the available tools to operate the computer. Always take a screenshot first to see the current screen state before acting."},
-        {"role": "user", "content": "Take a screenshot and tell me what you see on the screen." }
+        {"role": "user", "content": user_content }
     ]
     
     while True:
+
         response = call_model(messages)
         msg = response.choices[0].message
 
@@ -35,6 +37,7 @@ try:
 
         # Check if model wants to call a tool
         if msg.tool_calls:
+            messages.append(msg)  # append assistant's tool call decision first
             for tool_call in msg.tool_calls:
                 func = getattr(tool_call, 'function', None)
                 name = func.name if func else tool_call.name

@@ -139,21 +139,37 @@ def tool_result(tool_call_id: str, result: dict) -> dict:
     Screenshot results are sent back as image_url blocks so the model can see them.
     All other results are sent as plain JSON text."""
     if result.get("type") == "image":
-        return {
+        # Alibaba's API does not support image_url inside a tool role message.
+        # So we return two messages:
+        # 1. A plain text tool result (keeps conversation structure valid)
+        # 2. A user message with the actual image (so the model can see it)
+        return [
+            {
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "content": "Screenshot taken successfully."
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{result['data']}"}
+                    },
+                    {
+                        "type": "text",
+                        "text": "Here is the current screenshot. Use it to decide the next action."
+                    }
+                ]
+            }
+        ]
+    return [
+        {
             "role": "tool",
             "tool_call_id": tool_call_id,
-            "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{result['data']}"}
-                }
-            ]
+            "content": json.dumps(result)
         }
-    return {
-        "role": "tool",
-        "tool_call_id": tool_call_id,
-        "content": json.dumps(result)
-    }
+    ]
 
 # if __name__ == "__main__":
     # Test the tools
