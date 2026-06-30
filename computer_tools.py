@@ -134,10 +134,10 @@ TOOLS: list[Any] = [
 
 # ── tool_result helper: formats tool output for the messages list ─────────────
 
-def tool_result(tool_call_id: str, result: dict) -> dict:
-    """Formats a tool execution result to append to messages.
-    Screenshot results are sent back as image_url blocks so the model can see them.
-    All other results are sent as plain JSON text."""
+def tool_result(tool_call_id: str, result: dict) -> list[dict]:
+    """Formats a tool execution result into a list of messages to append.
+    Returns a list because screenshot needs two messages (tool + user with image)
+    while all other tools only need one (tool with text)."""
     if result.get("type") == "image":
         # Alibaba's API does not support image_url inside a tool role message.
         # So we return two messages:

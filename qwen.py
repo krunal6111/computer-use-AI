@@ -38,15 +38,52 @@ try:
         # Check if model wants to call a tool
         if msg.tool_calls:
             messages.append(msg)  # append assistant's tool call decision first
-            for tool_call in msg.tool_calls:
-                func = getattr(tool_call, 'function', None)
-                name = func.name if func else tool_call.name
-                args = func.arguments if func else "{}"
-                print(f"Model decided to call tool: {name}")
-                print(f"With args: {args}")
-                
-                result = TOOL_REGISTRY[name](**json.loads(args))
-                messages.append(tool_result(tool_call.id, result))  # append result
+            # Process only the FIRST tool call per loop iteration.
+            # This forces the model to re-evaluate after seeing the screenshot
+            # result before deciding the next action — prevents blind batched execution.
+            tool_call = msg.tool_calls[0]
+            func = getattr(tool_call, 'function', None)
+            name = func.name if func else tool_call.name
+            args = func.arguments if func else "{}"
+            print(f"Model decided to call tool: {name}")
+            print(f"With args: {args}")
+
+            parsed_args = json.loads(args)
+
+            # Guard: model sometimes packs both x,y into x as a list e.g. {"x": [306, 969]}
+            # Unpack it automatically so left_click(x, y) gets correct values
+            if name == "left_click" and isinstance(parsed_args.get("x"), list):
+                coords = parsed_args["x"]
+                parsed_args["x"] = coords[0]
+                parsed_args["y"] = coords[1]
+                print(f"[Fixed malformed args] Unpacked x list → x={parsed_args['x']}, y={parsed_args['y']}")
+
+            result = TOOL_REGISTRY[name](**parsed_args)
+            messages.extend(tool_result(tool_call.id, result))
+
+            # Force a screenshot after every non-screenshot tool call
+            # so the model always sees the current screen state before deciding next action.
+            # We don't leave this to the model's discretion — it will skip it to save steps.
+            # Note: we bypass tool_result() here because this screenshot has no matching
+            # tool_call_id — we inject it directly as a user message with the image.
+            if name != "screenshot":
+                auto_shot = TOOL_REGISTRY["screenshot"]()
+                print(f"[Debug] Auto-screenshot taken, base64 length: {len(auto_shot['data'])}")
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{auto_shot['data']}"}
+                        },
+                        {
+                            "type": "text",
+                            "text": f"Screenshot taken after executing '{name}'. STOP and carefully examine this screenshot. Did the action succeed? Is the screen in the expected state? If not, adjust your plan accordingly. Do NOT continue with your original plan blindly."
+                        }
+                    ]
+                })
+                print(f"[Debug] Messages count after auto-screenshot: {len(messages)}")
+                print(f"[Debug] Last message role: {messages[-1]['role']}")
         else:
             print(msg.content)
 
