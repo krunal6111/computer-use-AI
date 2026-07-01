@@ -1,54 +1,79 @@
-import openai  # OpenRouter is OpenAI-compatible
-import base64
-from PIL import ImageGrab  # pip install pillow
+import os
+import json
+from qwen_agent.agents import Assistant
+from dotenv import load_dotenv
 
-client = openai.OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key="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"
+load_dotenv(override=True)
+api_key = os.getenv("DASHSCOPE_API_KEY")
+
+llm_cfg = {
+    'model': 'qwen3-vl-235b-a22b-instruct',
+    'model_type': 'qwenvl_oai',
+    'model_server': 'https://ws-kn7wswwru4udmh42.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
+    'api_key': api_key,
+    'generate_cfg': {
+        'use_raw_api': True,
+    }
+}
+
+tools = [{
+    "mcpServers": {
+        "open-computer-use": {
+            "command": "open-computer-use",
+            "args": ["mcp"]
+        }
+    }
+}]
+
+bot = Assistant(
+    llm=llm_cfg,
+    system_message="You are a computer use agent. Use the available tools to operate the computer. Only perform the task the user explicitly asks for. Do not do anything extra beyond the stated goal.",
+    function_list=tools
 )
 
-def take_screenshot():
-    img = ImageGrab.grab()
-    img.save("screen.png")
-    with open("screen.png", "rb") as f:
-        return base64.b64encode(f.read()).decode()
+step = 0
 
-def ask_model(user_goal: str, screenshot_b64: str):
-    response = client.chat.completions.create(
-        model="qwen/qwen2.5-vl-72b-instruct:free",
-        max_tokens=500,
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a computer use agent. When given a screenshot and a goal, respond ONLY with a JSON object like: {\"action\": \"click\", \"x\": 450, \"y\": 230} or {\"action\": \"type\", \"text\": \"hello\"} or {\"action\": \"done\", \"message\": \"task complete\"}. No explanation, no markdown, only raw JSON."
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}
-                    },
-                    {
-                        "type": "text",
-                        "text": user_goal
-                    }
-                ]
-            }
-        ]
-    )
-    return response.choices[0].message.content
+def log_step(response):
+    """Prints each message in the response list clearly so you can track every tool call and result."""
+    global step
+    for msg in response:
+        role = msg.get('role', 'unknown')
 
-# Try it
-screenshot = take_screenshot()
+        if role == 'assistant':
+            # Extract tool calls if present
+            content = msg.get('content', [])
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get('type') == 'tool_use':
+                        step += 1
+                        print(f"\n[Step {step}] Tool call: {block.get('name')}")
+                        print(f"          Args: {json.dumps(block.get('input', {}), indent=10)}")
+            elif isinstance(content, str) and content.strip():
+                print(f"\n[Assistant] {content.strip()}")
+
+        elif role == 'tool':
+            content = msg.get('content', '')
+            # Don't print raw screenshot base64 — just confirm it was received
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get('type') == 'image_url':
+                        print(f"          ↳ Result: [screenshot received]")
+                    elif isinstance(block, dict) and block.get('type') == 'text':
+                        print(f"          ↳ Result: {block.get('text', '')}")
+            elif isinstance(content, str):
+                print(f"          ↳ Result: {content}")
+
+        elif role == 'user':
+            # Skip — these are just screenshot injections, not useful to log
+            pass
+
+user_goal = input("What do you want to do?: ")
+messages = [{'role': 'user', 'content': user_goal}]
+
+print("\nAgent running... Press Ctrl+C to stop at any time.\n")
+
 try:
-    result = ask_model("Click the Chrome icon to open the browser", screenshot)
-    print(result)
-    print("Data type of result:", type(result))
-    print("Now you would parse the JSON and perform the action on your computer using something like pyautogui. This is just a demo of getting the model's response.")
-
-except openai.APIStatusError as e:
-    print(f"API Error: {e.message}")
-    print("Check your OpenRouter credits: https://openrouter.ai/settings/credits")
-except Exception as e:
-    print(f"Error: {type(e).__name__}: {e}")
+    for response in bot.run(messages):
+        log_step(response)
+except KeyboardInterrupt:
+    print("\n[Stopped by user]")
