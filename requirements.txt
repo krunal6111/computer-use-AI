@@ -1,0 +1,20 @@
+# System packages (Ubuntu/Debian), required on Linux/X11:
+#   sudo apt-get install python3-tk python3-dev scrot xclip tesseract-ocr
+
+# computer_agent.py
+google-genai==2.25.0
+requests==2.34.2
+pillow==12.3.0
+
+open-interpreter==0.4.3
+Flask==3.1.3
+PyAutoGUI==0.9.54
+python-dotenv==1.2.3
+# Open Interpreter OS-mode extras (the heavy torch-based ones are left out:
+# sentence-transformers, timm)
+opencv-python==4.14.0.94
+pytesseract==0.3.13
+plyer==2.1.0
+pywinctl==0.3
+screeninfo==0.8.1
+ipywidgets==8.1.9
