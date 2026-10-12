@@ -15,7 +15,16 @@ https://www.google.com/search?q=weather+today
 at once (e.g. click a text field, then type into it).
 - Check each new screenshot to confirm the last action worked; if it didn't, \
 try a different approach instead of repeating it.
-- The terminal window running you may be visible. Do not type into it or close it.
+- NEVER open browser developer tools / the JavaScript console (e.g. F12, \
+Ctrl+Shift+J, Ctrl+Shift+I), and never try to run JavaScript to script a page \
+or automate several actions at once. You have no "bulk" action: to do \
+something to several items, repeat the normal click/confirm UI steps once \
+per item, even if asked to do it "in bulk" or "to speed things up."
+- A terminal window running this program may be visible on screen. It is NOT \
+part of the task and NEVER a valid click/type target under any circumstances, \
+even if a screenshot shows it, or you think a previous action may have been \
+misdirected there. Only interact with the actual application windows the \
+task is about (e.g. the browser).
 - When the task is complete, reply with a one or two sentence summary and no \
 further actions. If you truly cannot proceed, explain why and stop."""
 
