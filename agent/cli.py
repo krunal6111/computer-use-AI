@@ -30,6 +30,7 @@ import sys
 from agent.backends import BACKENDS
 from agent.config import DEFAULT_MODELS, GEMINI_FALLBACKS
 from agent.desktop import Desktop
+from agent.hud import Hud
 from agent.orchestrator import run_task
 
 
@@ -45,12 +46,21 @@ def main():
                     help="gemini: thinking level; lower is faster (default: per model)")
     ap.add_argument("--max-steps", type=int, default=30)
     ap.add_argument("--confirm", action="store_true", help="approve every action before it runs")
+    ap.add_argument("--no-hud", action="store_true",
+                    help="don't show the always-on-top step overlay window")
     args = ap.parse_args()
 
     if os.environ.get("XDG_SESSION_TYPE") == "wayland":
         sys.exit("This needs an X11 session (pyautogui can't control Wayland). "
                  "Log out and pick 'Ubuntu on Xorg'.")
 
+    if args.no_hud:
+        _run_session(None, args)
+    else:
+        Hud(title="Agent").run(_run_session, args)
+
+
+def _run_session(hud, args):
     desktop = Desktop()
     model = args.model or DEFAULT_MODELS[args.backend]
     fallbacks = [m.strip() for m in args.fallbacks.split(",") if m.strip()]
@@ -79,7 +89,7 @@ def main():
             if task.lower() in ("", "quit", "exit", "q"):
                 break
         try:
-            run_task(backend, desktop, task, args.max_steps, args.confirm)
+            run_task(backend, desktop, task, args.max_steps, args.confirm, hud=hud)
         except KeyboardInterrupt:
             print("\n>> Aborted (Ctrl+C).")
         except desktop.gui.FailSafeException:
