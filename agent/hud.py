@@ -8,12 +8,13 @@ with the work function, then Hud.start() on the main thread.
 
 import contextlib
 import queue
+import subprocess
 import threading
 import time
 import tkinter as tk
 from dataclasses import dataclass
 
-WIDTH, HEIGHT = 380, 300
+WIDTH, HEIGHT = 380, 340
 MAX_ROWS = 8
 BG = "#111318"
 PANEL = "#1b1e26"
@@ -22,6 +23,25 @@ OK = "#4caf6d"
 ERR = "#e5534b"
 MUTED = "#767d8c"
 TEXT = "#e8eaf0"
+
+
+def _active_window_id():
+    try:
+        out = subprocess.run(["xdotool", "getactivewindow"],
+                             capture_output=True, text=True, timeout=1)
+        return out.stdout.strip() if out.returncode == 0 else None
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        return None
+
+
+def _restore_focus(window_id):
+    if not window_id:
+        return
+    try:
+        subprocess.run(["xdotool", "windowactivate", "--sync", window_id],
+                       capture_output=True, timeout=1)
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        pass
 
 
 @dataclass
@@ -41,6 +61,7 @@ class Hud:
         self._rows: list[_Row] = []
         self._spin_idx = 0
         self._closing = False
+        self._awaiting_confirm = False
 
     # -- public, thread-safe API (call these from the worker thread) --------
 
@@ -53,14 +74,28 @@ class Hud:
     def close(self):
         self._queue.put(("close", None, None))
 
+    def confirm(self, question: str, default: bool = False) -> bool:
+        """Show Yes/No buttons in the HUD and block the calling (worker)
+        thread until the user clicks one. Thread-safe."""
+        if not self._root or self._closing:
+            return default
+        answered = threading.Event()
+        result = {"value": default}
+        self._queue.put(("confirm", (question, default, result), answered))
+        answered.wait()
+        return result["value"]
+
     @contextlib.contextmanager
     def hide_for_capture(self):
         """Hide the window for a screenshot, then restore it. Blocks the
         calling (worker) thread until Tk confirms each state change, so the
-        caller never captures a frame with the HUD still on screen."""
+        caller never captures a frame with the HUD still on screen. Also
+        remembers and restores whatever window had keyboard focus, so
+        re-showing the HUD never steals focus from the target app."""
         if not self._root or self._closing:
             yield
             return
+        focused_before = _active_window_id()
         hidden = threading.Event()
         self._queue.put(("hide", hidden, None))
         hidden.wait(timeout=1.0)
@@ -70,6 +105,7 @@ class Hud:
             shown = threading.Event()
             self._queue.put(("show", shown, None))
             shown.wait(timeout=1.0)
+            _restore_focus(focused_before)
 
     # -- main-thread API ------------------------------------------------
 
@@ -99,6 +135,12 @@ class Hud:
         root.resizable(False, False)
         try:
             root.attributes("-alpha", 0.96)
+        except tk.TclError:
+            pass
+        try:
+            # Tell the WM this is a utility panel, not a normal app window,
+            # so it's deprioritized for focus/activation (X11 only, best-effort).
+            root.attributes("-type", "utility")
         except tk.TclError:
             pass
 
@@ -135,7 +177,8 @@ class Hud:
             return
         self._spin_idx = (self._spin_idx + 1) % 20
         glow = 0.5 + 0.5 * abs(10 - self._spin_idx) / 10
-        color = _blend(ACCENT, BG, glow)
+        base = ERR if self._awaiting_confirm else ACCENT
+        color = _blend(base, BG, glow)
         try:
             self._dot.itemconfig(self._dot_id, fill=color)
         except tk.TclError:
@@ -176,6 +219,9 @@ class Hud:
                     self._root.attributes("-topmost", True)
                     self._root.update_idletasks()
                     text.set()
+                elif kind == "confirm":
+                    question, default, result = text
+                    self._show_confirm_prompt(question, default, result, extra)
                 elif kind == "close":
                     self._closing = True
                     self._root.after(900, self._root.destroy)
@@ -202,6 +248,42 @@ class Hud:
         label.pack(side="left", fill="x", expand=True)
         self._row_widgets.append((row, marker, label))
         self._canvas.after(10, lambda: self._canvas.yview_moveto(1.0))
+
+    def _show_confirm_prompt(self, question, default, result, done_event):
+        self._awaiting_confirm = True
+        frame = tk.Frame(self._root, bg=PANEL, highlightbackground=ACCENT,
+                         highlightthickness=1)
+        frame.place(relx=0.5, rely=1.0, anchor="s", relwidth=0.94, y=-8)
+
+        tk.Label(frame, text="Confirmation needed", bg=PANEL, fg=ACCENT,
+                 font=("Sans", 9, "bold")).pack(anchor="w", padx=10, pady=(8, 0))
+        tk.Label(frame, text=question, bg=PANEL, fg=TEXT, font=("Sans", 9),
+                 justify="left", anchor="w", wraplength=WIDTH - 40).pack(
+            anchor="w", padx=10, pady=(2, 8), fill="x")
+
+        btns = tk.Frame(frame, bg=PANEL)
+        btns.pack(pady=(0, 10), padx=10, fill="x")
+
+        def respond(value):
+            result["value"] = value
+            frame.destroy()
+            self._awaiting_confirm = False
+            done_event.set()
+
+        no_btn = tk.Button(btns, text="No", bg="#2a2d36", fg=TEXT,
+                           activebackground=ERR, activeforeground="white",
+                           relief="flat", padx=16, pady=4,
+                           command=lambda: respond(False))
+        no_btn.pack(side="right", padx=(6, 0))
+        yes_btn = tk.Button(btns, text="Yes", bg=ACCENT, fg="white",
+                            activebackground=OK, activeforeground="white",
+                            relief="flat", padx=16, pady=4,
+                            command=lambda: respond(True))
+        yes_btn.pack(side="right")
+        (yes_btn if default else no_btn).focus_set()
+        self._root.deiconify()
+        self._root.attributes("-topmost", True)
+        self._root.bell()
 
     def _finish_last(self, kind):
         if not self._rows or not self._row_widgets:

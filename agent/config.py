@@ -11,9 +11,10 @@ DEFAULT_MODELS = {
 }
 # Tried in order when the current Gemini model is overloaded (503) or times out.
 GEMINI_FALLBACKS = ["gemini-3.5-flash", "gemini-3.8-flash"]
-# Less thinking = faster answers. flash-lite at "minimal" still clicked
-# accurately in testing (5s vs 11s at the default); 3.8-flash rejects "minimal".
-GEMINI_THINKING = {"gemini-3.5-flash-lite": "minimal"}
+# Less thinking = faster answers. flash-lite and flash at "minimal" still
+# clicked accurately in testing (5s vs 11s at the default); 3.8-flash
+# rejects "minimal", so it keeps the "low" default below.
+GEMINI_THINKING = {"gemini-3.5-flash-lite": "minimal", "gemini-3.5-flash": "minimal"}
 GEMINI_DEFAULT_THINKING = "low"
 NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 

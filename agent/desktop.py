@@ -7,6 +7,8 @@ from PIL import Image
 
 from agent.config import SCREENSHOT_WIDTH
 
+_SKIP_FOCUS_TITLES = ("agent (", "agent ")  # our own HUD window, by title prefix
+
 _KEY_ALIASES = {
     "control": "ctrl", "ctl": "ctrl", "control_l": "ctrl", "control_r": "ctrlright",
     "super": "win", "super_l": "win", "super_r": "winright", "meta": "win",
@@ -74,12 +76,42 @@ class Desktop:
         return [k.lower() for k in keys] if len(keys) > 1 else keys
 
     def _type(self, text):
+        self._guard_keyboard_focus()
         if text.isascii():
             self.gui.write(text, interval=0.02)
             return
         # pyautogui can only type ASCII; paste anything else via the clipboard.
         subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode(), check=True)
         self.gui.hotkey("ctrl", "v")
+
+    def _active_window_id(self):
+        try:
+            out = subprocess.run(["xdotool", "getactivewindow"],
+                                 capture_output=True, text=True, timeout=1)
+            return out.stdout.strip() if out.returncode == 0 else None
+        except (subprocess.SubprocessError, FileNotFoundError, OSError):
+            return None
+
+    def _window_title(self, window_id):
+        try:
+            out = subprocess.run(["xdotool", "getwindowname", window_id],
+                                 capture_output=True, text=True, timeout=1)
+            return out.stdout.strip() if out.returncode == 0 else ""
+        except (subprocess.SubprocessError, FileNotFoundError, OSError):
+            return ""
+
+    def _guard_keyboard_focus(self):
+        """Refuse to send keystrokes if focus has drifted onto our own HUD
+        window or disappeared, so typed text never leaks into e.g. a
+        terminal. Best-effort: if xdotool isn't available, does nothing."""
+        window_id = self._active_window_id()
+        if window_id is None:
+            return  # xdotool unavailable or query failed; nothing we can check
+        title = self._window_title(window_id).lower()
+        if any(title.startswith(p) for p in _SKIP_FOCUS_TITLES):
+            raise ActionError(
+                "refusing to type: keyboard focus is on the agent's own HUD "
+                "window, not the target application")
 
     # -- actions ----------------------------------------------------------
 
@@ -138,6 +170,7 @@ class Desktop:
             keys = self._keys(a)
             if not keys:
                 raise ActionError("no key given")
+            self._guard_keyboard_focus()
             g.hotkey(*keys) if len(keys) > 1 else g.press(keys[0])
             return f"pressed {'+'.join(keys)}"
 

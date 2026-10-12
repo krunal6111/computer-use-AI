@@ -16,7 +16,9 @@ def _screenshot(desktop, hud):
         return desktop.screenshot()
 
 
-def ask_yes_no(question, default=False) -> bool:
+def ask_yes_no(question, default=False, hud=None) -> bool:
+    if hud:
+        return hud.confirm(question, default)
     hint = "[Y/n]" if default else "[y/N]"
     try:
         answer = input(f"   ?? {question} {hint} ").strip().lower()
@@ -79,7 +81,7 @@ def run_task(backend, desktop, task, max_steps, confirm_each, hud=None):
             acknowledged = False
             if call.needs_confirmation:
                 print(f"   !! The model wants confirmation: {call.needs_confirmation}")
-                if not ask_yes_no("Allow this action?"):
+                if not ask_yes_no(call.needs_confirmation or "Allow this action?", hud=hud):
                     print(">> Stopped: you declined the action.")
                     if hud:
                         hud.finish_last("error")
@@ -87,7 +89,7 @@ def run_task(backend, desktop, task, max_steps, confirm_each, hud=None):
                         hud.finish_last("error")
                     return
                 acknowledged = True
-            elif confirm_each and not ask_yes_no("Run it?", default=True):
+            elif confirm_each and not ask_yes_no("Run it?", default=True, hud=hud):
                 print(">> Stopped by you.")
                 if hud:
                     hud.finish_last("error")
