@@ -44,7 +44,7 @@ def main():
                          "is overloaded; '' to disable (default: %(default)s)")
     ap.add_argument("--thinking", choices=["minimal", "low", "medium", "high"],
                     help="gemini: thinking level; lower is faster (default: per model)")
-    ap.add_argument("--max-steps", type=int, default=30)
+    ap.add_argument("--max-steps", type=int, default=70)
     ap.add_argument("--confirm", action="store_true", help="approve every action before it runs")
     ap.add_argument("--no-hud", action="store_true",
                     help="don't show the always-on-top step overlay window")
