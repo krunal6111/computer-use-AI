@@ -31,4 +31,8 @@ further actions. If you truly cannot proceed, explain why and stop."""
 NIM_EXTRA_PROMPT = """
 Use the `computer` tool for every action. Coordinates are normalized to \
 0-1000 on each axis: [0, 0] is the top-left of the screenshot and \
-[1000, 1000] the bottom-right."""
+[1000, 1000] the bottom-right.
+
+Chrome has two profiles: "Krunal Nexus" (work) and "Krunal Personal" (personal).
+Always verify which profile you are in by looking at the profile menu or window \
+title when it matters for the task."""
