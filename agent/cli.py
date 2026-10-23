@@ -10,7 +10,8 @@ Backends
           trained on (click, type, hotkey, scroll, ... in 0-999 coordinates).
   nim     NVIDIA NIM, OpenAI-compatible (NVIDIA_API_KEY). Declares a standard
           `computer` function tool. Works with vision models that do GUI
-          grounding in 0-1000 normalized coordinates, e.g. google/gemma-4-31b-it.
+          grounding in 0-1000 normalized coordinates, e.g.
+          nvidia/nemotron-3.5-super-vl-120b-a12b.
 
 Usage
   ./computer_agent.py "Open the Files app and create a folder named test"

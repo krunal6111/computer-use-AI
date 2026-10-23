@@ -7,7 +7,7 @@ load_dotenv(os.path.join(_REPO_ROOT, ".env"))
 
 DEFAULT_MODELS = {
     "gemini": "gemini-3.5-flash-lite",
-    "nim": "google/gemma-4-31b-it",
+    "nim": "nvidia/nemotron-3.5-super-vl-120b-a12b",
 }
 # Tried in order when the current Gemini model is overloaded (503) or times out.
 GEMINI_FALLBACKS = ["gemini-3.5-flash", "gemini-3.8-flash"]
@@ -23,5 +23,9 @@ KEEP_SCREENSHOTS = 2     # older screenshots are dropped from history to save to
 SETTLE_SECONDS = 0.5     # wait after an action so the UI can update...
 SLOW_SETTLE_SECONDS = 2.0  # ...longer after actions that load a page or app
 REQUEST_TIMEOUT = 90     # seconds per model call
+# Nemotron on NIM answers in 2-11s. A request still unanswered at 30s is stuck
+# in NVIDIA's queue, and a fresh retry recovers faster than waiting it out.
+NIM_REQUEST_TIMEOUT = 30
+ERROR_LOG = os.path.join(_REPO_ROOT, "errors.log")
 MAX_RETRIES = 8
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}

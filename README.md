@@ -4,7 +4,7 @@ A computer-use AI agent for Ubuntu (X11): it takes a screenshot, sends it to an
 LLM (Gemini or NVIDIA NIM), and executes whatever mouse/keyboard action the
 model picks via `pyautogui` — click, type, scroll, open a URL, etc. It repeats
 this screenshot → decide → act loop until the model says the task is done.
-
+    
 A small always-on-top HUD window shows live step-by-step progress so you can
 watch what it's doing even when it switches focus to another app.
 

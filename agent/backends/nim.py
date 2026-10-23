@@ -5,7 +5,7 @@ import sys
 
 import requests
 
-from agent.config import KEEP_SCREENSHOTS, NIM_URL, REQUEST_TIMEOUT
+from agent.config import KEEP_SCREENSHOTS, NIM_REQUEST_TIMEOUT, NIM_URL
 from agent.prompts import NIM_EXTRA_PROMPT, SYSTEM_PROMPT
 from agent.tool_types import ToolCall
 
@@ -70,7 +70,7 @@ class NimBackend:
         ]
 
     def next_actions(self):
-        r = requests.post(NIM_URL, timeout=REQUEST_TIMEOUT,
+        r = requests.post(NIM_URL, timeout=NIM_REQUEST_TIMEOUT,
                           headers={"Authorization": f"Bearer {self.key}"},
                           json={"model": self.model, "messages": self.messages,
                                 "tools": [NIM_COMPUTER_TOOL], "tool_choice": "auto",

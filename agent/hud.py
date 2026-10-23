@@ -2,8 +2,8 @@
 
 Tkinter must run its mainloop on the main thread, so the actual agent loop
 (run_task / the CLI's task loop) runs on a background thread instead, and
-pushes updates here through a thread-safe queue. Call Hud.run_in_background()
-with the work function, then Hud.start() on the main thread.
+pushes updates here through a thread-safe queue. Call Hud.run(work, *args) on
+the main thread; it runs work(hud, *args) on a background thread.
 """
 
 import contextlib
@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 WIDTH, HEIGHT = 380, 340
 MAX_ROWS = 8
+MAX_ROW_CHARS = 160  # the HUD is for glancing; full text stays in the terminal
 BG = "#111318"
 PANEL = "#1b1e26"
 ACCENT = "#5b8cff"
@@ -156,8 +157,6 @@ class Hud:
         self._canvas.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         self._list = tk.Frame(self._canvas, bg=BG)
         self._list_window = self._canvas.create_window((0, 0), window=self._list, anchor="nw")
-        self._list.bind("<Configure>", lambda e: self._canvas.configure(
-            scrollregion=self._canvas.bbox("all")))
         self._canvas.bind("<Configure>", lambda e: self._canvas.itemconfig(
             self._list_window, width=e.width))
 
@@ -231,6 +230,8 @@ class Hud:
         self._root.after(80, self._drain_queue)
 
     def _add_row(self, text, kind):
+        if len(text) > MAX_ROW_CHARS:
+            text = text[:MAX_ROW_CHARS - 1] + "…"
         self._rows.append(_Row(text, kind))
         if len(self._rows) > MAX_ROWS:
             self._rows.pop(0)
@@ -247,7 +248,10 @@ class Hud:
                          justify="left", anchor="w", wraplength=WIDTH - 60)
         label.pack(side="left", fill="x", expand=True)
         self._row_widgets.append((row, marker, label))
-        self._canvas.after(10, lambda: self._canvas.yview_moveto(1.0))
+        # Synchronous, so removing a tall row can't leave the view scrolled past the rest.
+        self._list.update_idletasks()
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+        self._canvas.yview_moveto(1.0)
 
     def _show_confirm_prompt(self, question, default, result, done_event):
         self._awaiting_confirm = True
