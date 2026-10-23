@@ -33,12 +33,12 @@ def _detail(e):
     return str(e)
 
 
-def _log_error(e, attempt):
+def _log_error(e, attempt, seconds):
     resp = getattr(e, "response", None)
     headers = dict(getattr(resp, "headers", None) or {})
     with open(ERROR_LOG, "a") as f:
         f.write(f"\n===== {datetime.now().isoformat(timespec='seconds')} "
-                f"attempt {attempt}/{MAX_RETRIES}, status {_status(e)}\n")
+                f"attempt {attempt}/{MAX_RETRIES}, status {_status(e)}, {seconds:.1f}s\n")
         if headers:
             f.write(f"response headers: {headers}\n")
         f.write(f"response body: {_detail(e)}\n")
@@ -49,12 +49,13 @@ def with_retries(fn):
     """Call fn(), retrying overloads / rate limits / network blips with backoff.
     Every failure is appended in full (body + traceback) to ERROR_LOG."""
     for attempt in range(1, MAX_RETRIES + 1):
+        started = time.monotonic()
         try:
             return fn()
         except RetryNow:
             continue
         except Exception as e:
-            _log_error(e, attempt)
+            _log_error(e, attempt, time.monotonic() - started)
             status = _status(e)
             daily_quota = status == 429 and "PerDay" in str(e)
             retryable = status in RETRYABLE_STATUS or _is_network_error(e)
@@ -65,5 +66,5 @@ def with_retries(fn):
             delay = min(2 ** (attempt - 1), 15)
             print(f"   ... {reason} ({status or type(e).__name__}), retrying in {delay}s "
                   f"[{attempt}/{MAX_RETRIES - 1}]")
-            print(f"       {' '.join(_detail(e).split())[:200]}  (full details: errors.log)")
+            print(f"       {' '.join(_detail(e).split())[:200]}  (full details: logs/errors.log)")
             time.sleep(delay)

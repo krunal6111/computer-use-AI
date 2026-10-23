@@ -23,9 +23,11 @@ KEEP_SCREENSHOTS = 2     # older screenshots are dropped from history to save to
 SETTLE_SECONDS = 0.5     # wait after an action so the UI can update...
 SLOW_SETTLE_SECONDS = 2.0  # ...longer after actions that load a page or app
 REQUEST_TIMEOUT = 90     # seconds per model call
-# Nemotron on NIM answers in 2-11s. A request still unanswered at 30s is stuck
-# in NVIDIA's queue, and a fresh retry recovers faster than waiting it out.
-NIM_REQUEST_TIMEOUT = 30
-ERROR_LOG = os.path.join(_REPO_ROOT, "errors.log")
+# The free NIM endpoint queues requests under load; 30s cut off answers that arrived later.
+NIM_REQUEST_TIMEOUT = 60
+LOG_DIR = os.path.join(_REPO_ROOT, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+NIM_LATENCY_LOG = os.path.join(LOG_DIR, "latency.log")
+ERROR_LOG = os.path.join(LOG_DIR, "errors.log")
 MAX_RETRIES = 8
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}

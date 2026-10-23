@@ -2,10 +2,12 @@ import base64
 import json
 import os
 import sys
+import time
+from datetime import datetime
 
 import requests
 
-from agent.config import KEEP_SCREENSHOTS, NIM_REQUEST_TIMEOUT, NIM_URL
+from agent.config import KEEP_SCREENSHOTS, NIM_LATENCY_LOG, NIM_REQUEST_TIMEOUT, NIM_URL
 from agent.prompts import NIM_EXTRA_PROMPT, SYSTEM_PROMPT
 from agent.tool_types import ToolCall
 
@@ -69,14 +71,23 @@ class NimBackend:
             {"role": "user", "content": [{"type": "text", "text": task}, self._image(screenshot)]},
         ]
 
+    def _log_latency(self, seconds, data):
+        tokens = (data.get("usage") or {}).get("completion_tokens", "?")
+        with open(NIM_LATENCY_LOG, "a") as f:
+            f.write(f"{datetime.now().isoformat(timespec='seconds')} {self.model} "
+                    f"{seconds:.1f}s completion_tokens={tokens}\n")
+
     def next_actions(self):
+        started = time.monotonic()
         r = requests.post(NIM_URL, timeout=NIM_REQUEST_TIMEOUT,
                           headers={"Authorization": f"Bearer {self.key}"},
                           json={"model": self.model, "messages": self.messages,
                                 "tools": [NIM_COMPUTER_TOOL], "tool_choice": "auto",
                                 "temperature": 0.2, "max_tokens": 2048})
         r.raise_for_status()
-        msg = r.json()["choices"][0]["message"]
+        data = r.json()
+        self._log_latency(time.monotonic() - started, data)
+        msg = data["choices"][0]["message"]
         tool_calls = msg.get("tool_calls") or []
         self.messages.append({"role": "assistant", "content": msg.get("content") or "",
                               **({"tool_calls": tool_calls} if tool_calls else {})})
